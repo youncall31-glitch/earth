@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0c0b1d">
+<meta name="robots" content="noindex">
+<title>시간의 거리 · 새 주소로 이동</title>
+<link rel="canonical" href="https://wearenotearth.com/">
+<style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0c0b1d;color:#ece7dc;font:16px/1.6 -apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;text-align:center}a{color:#7fd6ff}p{margin:6px 0}.dim{color:#9a94a8;font-size:13px}</style>
+</head>
+<body>
+<main>
+<p>🌍 <b>시간의 거리</b>가 새 주소로 이사했어요</p>
+<p><a id="go" href="https://wearenotearth.com/">wearenotearth.com</a></p>
+<p class="dim" id="st">하던 기록을 챙겨서 옮기는 중…</p>
+</main>
+<script>
+/* 옛 주소(github.io) → 새 주소. 이 주소에 남은 게임 기록을 함께 넘겨 이어 하게 한다. */
+(async () => {
+  const NEW = 'https://wearenotearth.com';
+  const KEY = 'earthmaker-planet1', OLD_KEY = 'earthmaker-evo1';
+  /* /earth/en/ → /en/ */
+  const sub = location.pathname.replace(/^\/[^/]+\/?/, '/').replace(/index\.html$/, '');
+  let target = NEW + (/^\/[a-z]{2}\/$/.test(sub) ? sub : '/');
+  const hash = location.hash;
+  const read = () => new Promise(res => {
+    let txt = null; try { txt = localStorage.getItem(KEY) || localStorage.getItem(OLD_KEY); } catch (e) { }
+    if (txt) return res(txt);
+    try { const r = indexedDB.open('earthmaker', 1); r.onupgradeneeded = () => r.result.createObjectStore('save');
+      r.onsuccess = () => { try { const q = r.result.transaction('save').objectStore('save').get(KEY); q.onsuccess = () => res(q.result || null); q.onerror = () => res(null); } catch (e) { res(null); } };
+      r.onerror = () => res(null); } catch (e) { res(null); }
+    setTimeout(() => res(null), 1500);
+  });
+  const pack = async json => {
+    const bytes = new TextEncoder().encode(json); let out = bytes, tag = 'EM1';
+    try { if (typeof CompressionStream !== 'undefined') { out = new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer()); tag = 'EM1Z'; } } catch (e) { out = bytes; tag = 'EM1'; }
+    let bin = ''; for (let i = 0; i < out.length; i += 8192) bin += String.fromCharCode.apply(null, out.subarray(i, i + 8192));
+    return tag + ':' + btoa(bin);
+  };
+  /* 옛 오프라인 사본(서비스 워커·캐시)을 지운다 */
+  try { (await navigator.serviceWorker.getRegistrations()).forEach(r => r.unregister()); } catch (e) { }
+  try { (await caches.keys()).forEach(k => caches.delete(k)); } catch (e) { }
+  if (/^#f=/.test(hash)) target += hash; /* 친구 링크는 그대로 넘긴다 */
+  else {
+    try { const txt = await read(); if (txt) { const g = JSON.parse(txt); if (g && Array.isArray(g.found)) target += '#move=' + encodeURIComponent(await pack(txt)); } } catch (e) { }
+  }
+  document.getElementById('go').href = target;
+  /* 새 주소가 아직 열리지 않으면(준비 중) 옮기지 않고 기다린다 → 기록도 여기 그대로 남는다 */
+  const up = await Promise.race([fetch(NEW + '/manifest.webmanifest?' + Date.now(), { mode: 'no-cors', cache: 'no-store' }).then(() => true, () => false), new Promise(r => setTimeout(() => r(false), 6000))]);
+  if (!up) { document.getElementById('st').textContent = '새 주소를 준비하고 있어요. 잠시 뒤 다시 열어 주세요. (기록은 안전하게 남아 있어요)'; return; }
+  location.replace(target);
+})();
+</script>
+</body>
+</html>
